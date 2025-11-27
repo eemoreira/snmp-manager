@@ -2,7 +2,6 @@ CREATE TABLE maquina (
   id INT AUTO_INCREMENT PRIMARY KEY,
   ip VARCHAR(45) NOT NULL,
   mac VARCHAR(50) NOT NULL,
-  hostname VARCHAR(100),
   UNIQUE(ip),
   UNIQUE(mac)
 ) ENGINE=InnoDB;
@@ -35,6 +34,8 @@ CREATE TABLE sala (
 CREATE TABLE sala_porta (
   sala_id INT NOT NULL,
   porta_switch_id INT NOT NULL,
+  ip_maquina VARCHAR(45) NOT NULL,
+  UNIQUE (sala_id, ip_maquina),
   PRIMARY KEY (sala_id, porta_switch_id),
   FOREIGN KEY (sala_id) REFERENCES sala(id)
     ON DELETE CASCADE ON UPDATE CASCADE,
@@ -45,22 +46,11 @@ CREATE TABLE sala_porta (
 CREATE TABLE agendamento (
   id INT AUTO_INCREMENT PRIMARY KEY,
   sala_id INT NOT NULL,
+  ip_maquina VARCHAR(45) NOT NULL,
   acao ENUM('block', 'unblock') NOT NULL,
-  tempo_inicio DATETIME NOT NULL,
-  tempo_fim DATETIME NOT NULL,
+  tempo DATETIME NOT NULL,
   executado BOOLEAN NOT NULL DEFAULT FALSE,
   FOREIGN KEY (sala_id) REFERENCES sala(id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-
-CREATE TABLE log_porta (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  porta_switch_id INT NOT NULL,
-  acao ENUM('block', 'unblock') NOT NULL,
-  timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  por_agendamento BOOLEAN NOT NULL,
-  FOREIGN KEY (porta_switch_id) REFERENCES porta_switch(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB;
-
 

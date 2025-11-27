@@ -23,8 +23,12 @@ func main() {
 	h := &Handler{DB: database}
 
     r := mux.NewRouter()
-    r.HandleFunc("/api/ports/{port}/{state}", h.setPort).Methods("POST")
-    r.HandleFunc("/api/ports/{port}", h.getPort).Methods("GET")
+	r.HandleFunc("/", h.home).Methods("GET")
+	r.HandleFunc("/login", h.login).Methods("POST")
+	r.HandleFunc("/api/maquinas", h.createMaquina).Methods("POST")
+	r.HandleFunc("/api/agendamento", h.createAgendamento).Methods("POST")
+    r.HandleFunc("/api/ports", h.setPort).Methods("POST")
+    r.HandleFunc("/api/ports", h.getPort).Methods("GET")
 
     http.ListenAndServe(":8080", r)
 }
