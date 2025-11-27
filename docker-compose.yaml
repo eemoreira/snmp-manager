@@ -1,0 +1,43 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+      MYSQL_DATABASE: control
+      MYSQL_USER: user
+      MYSQL_PASSWORD: pass
+    volumes:
+      - db_data:/var/lib/mysql
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-ppass"]
+      interval: 5s
+      retries: 5
+      timeout: 3s
+
+  migrate:
+    image: migrate/migrate:latest
+    command: [
+      "-path", "/migrations",
+      "-database", "mysql://user:pass@tcp(localhost:3306)/control",
+      "up"
+    ]
+    volumes:
+      - ./migrations:/migrations
+    depends_on:
+      - db
+    restart: "on-failure"
+    network_mode: host
+
+  snmp-backend:
+    build:
+      context: ./snmp-service
+    environment:
+      DB_DSN: "user:pass@tcp(db:3306)/control?parseTime=true"
+    depends_on:
+      - db
+    network_mode: host
+
+volumes:
+  db_data:
+
