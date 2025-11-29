@@ -31,21 +31,31 @@ func (m *DBManager) CreateMaquina(ip, mac string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	return res.LastInsertId()
 }
 
-func (m *DBManager) GetPortaByIP(ip string) (int, error) {
-	var ps int
-	query := `
-	  SELECT ps.* FROM porta_switch ps
-	  JOIN switch_ s ON s.id = ps.switch_id
-	  WHERE s.ip = ?
-	`
-	err := m.DB.Get(&ps, query, ip)
-	if err != nil {
-		return -1, err
-	}
-	return ps, nil
+func (m *DBManager) LinkMaquinaToPortaSwitch(maquinaIP string, portaSwitchID int) error {
+	_, err := m.DB.Exec(
+		"INSERT INTO sala_porta (ip_maquina, porta_switch_id) VALUES (?, ?)",
+		maquinaIP, portaSwitchID,
+	)
+	return err
+}
+
+func (m *DBManager) GetPortaNumByMaquinaIP(maquinaIP string) (int, error) {
+    var portaNumero int
+    query := `
+        SELECT ps.porta_numero 
+        FROM porta_switch ps
+        JOIN sala_porta sp ON sp.porta_switch_id = ps.id
+        WHERE sp.ip_maquina = ?
+    `
+    err := m.DB.Get(&portaNumero, query, maquinaIP)
+    if err != nil {
+        return -1, err
+    }
+    return portaNumero, nil
 }
 
 func (m *DBManager) GetMaquinaByIP(ip string) (*models.Maquina, error) {
@@ -96,6 +106,47 @@ func (m *DBManager) CreateSala(nome string, adminMaquinaID int, login, senha str
 	return res.LastInsertId()
 }
 
+func (m *DBManager) CreateSalaPorta(salaID, portaSwitchID, ip string) (int64, error) {
+	res, err := m.DB.Exec(
+		"INSERT INTO sala_porta (sala_id, porta_switch_id, ip_maquina) VALUES (?, ?, ?)",
+		salaID, portaSwitchID, ip,
+	)
+	if err != nil {
+		return 0, nil
+	}
+	return res.LastInsertId()
+}
+
+func (m *DBManager) GetSalaFromPortaSwitch(switchIP string, portaNum int) (*models.Sala, error) {
+    var sala models.Sala
+    query := `
+        SELECT s.* FROM sala s
+        JOIN sala_porta sp ON sp.sala_id = s.id
+        JOIN porta_switch ps ON ps.id = sp.porta_switch_id
+        JOIN switch_ sw ON sw.id = ps.switch_id
+        WHERE sw.ip = ? AND ps.porta_numero = ?
+    `
+    err := m.DB.Get(&sala, query, switchIP, portaNum)
+    if err != nil {
+        return nil, err
+    }
+    return &sala, nil
+}
+
+func (m *DBManager) GetPortaSwitchID(switchIP string, portaNum int) (int, error) {
+	var portaSwitchID int
+	query := `
+		SELECT ps.id FROM porta_switch ps
+		JOIN switch_ sw ON sw.id = ps.switch_id
+		WHERE sw.ip = ? AND ps.porta_numero = ?
+	`
+	err := m.DB.Get(&portaSwitchID, query, switchIP, portaNum)
+	if err != nil {
+		return -1, err
+	}
+	return portaSwitchID, nil
+}
+
 func (m *DBManager) IsIPAdmin(ip string) (bool, *models.Sala, error) {
 	var sala models.Sala
 	query := `
@@ -110,12 +161,15 @@ func (m *DBManager) IsIPAdmin(ip string) (bool, *models.Sala, error) {
 	return true, &sala, nil
 }
 
-func (m *DBManager) CreateAgendamento(maquina_ip string, ativo bool, execTime time.Time) error {
-	_, err := m.DB.Exec(
-		"INSERT INTO agendamento (maquina_ip, ativo, tempo) VALUES (?, ?, ?)",
-		maquina_ip, ativo, execTime,
-	)
-	return err
+// É necessário passar o salaID e converter o boolean para o ENUM correto
+func (m *DBManager) CreateAgendamento(salaID int, maquinaIP string, acao bool, execTime time.Time) error {
+    // Validação simples para garantir que a string combine com o ENUM do banco
+
+    _, err := m.DB.Exec(
+        "INSERT INTO agendamento (sala_id, ip_maquina, acao, executar_em, executado) VALUES (?, ?, ?, ?, ?)",
+        salaID, maquinaIP, acao, execTime, false, // false para 'executado'
+    )
+    return err
 }
 
 func (m *DBManager) GetTODOAgendamentos() ([]models.Agendamento, error) {

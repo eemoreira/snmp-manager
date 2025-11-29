@@ -2,10 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
-	"fmt"
 
 	"github.com/eemoreira/snmp-manager/internal/db"
 	"github.com/eemoreira/snmp-manager/internal/models"
@@ -38,7 +39,7 @@ func (h *Handler) setPortCtx(ip, state string) (error, int) {
 	}
 	defer mgr.Close()
 
-	port, err := h.DB.GetPortaByIP(ip)
+	port, err := h.DB.GetPortaNumByMaquinaIP(ip)
 	if err != nil {
 		return err, 500
 	}
@@ -47,7 +48,10 @@ func (h *Handler) setPortCtx(ip, state string) (error, int) {
 		return fmt.Errorf("State must be 'up' or 'down'"), 400
 	}
 
+
+	fmt.Printf("Setting (ip, port) = (%s, %d) to %s\n", ip, port, state)
 	up := strings.EqualFold(state, "up")
+	fmt.Printf("Setting port %d to up=%v\n", port, up)
 
 	ok, err := mgr.SetPortStatus(port, up)
 	if err != nil || !ok {
@@ -103,7 +107,7 @@ func (h *Handler) getPort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	port, err := h.DB.GetPortaByIP(req.IP)
+	port, err := h.DB.GetPortaNumByMaquinaIP(req.IP)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "Failed to get port for IP: " + err.Error()})
 		return
@@ -137,9 +141,13 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]string{"message": "Login successful"})
 }
 
-
-func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	remoteIP := r.RemoteAddr
+func (h *Handler) check(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Remote addr: ", r.RemoteAddr)
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr) 
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "Failed to parse remote address: " + err.Error()})
+		return
+	}
 
 	isAdmin, sala, err := h.DB.IsIPAdmin(remoteIP)
 	if err != nil {
@@ -161,7 +169,6 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.agendamentoWorker()
 
 	writeJSON(w, 200, map[string]string{"message": "Welcome to the SNMP Manager"})
 
@@ -171,16 +178,45 @@ func (h *Handler) createMaquina(w http.ResponseWriter, r *http.Request) {
 	var mq struct {
 		IP       string `json:"ip"`
 		MAC      string `json:"mac"`
+		PortaNum int    `json:"porta_num"`
 	}
+	
 	err := json.NewDecoder(r.Body).Decode(&mq)
 	if err != nil {
 		writeJSON(w, 400, map[string]string{"error": "Invalid request payload"})
 		return
 	}
-	
+	sala, err := h.DB.GetSalaFromPortaSwitch(SWITCH_IP, mq.PortaNum)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "Failed to get room for port: " + err.Error()})
+		return
+	}
+	if sala == nil {
+		writeJSON(w, 400, map[string]string{"error": "No room found for the given port"})
+		return
+	}
+	if sala.ID != h.sala.ID {
+		writeJSON(w, 403, map[string]string{"error": "You do not have permission to add machines to this port"})
+		return
+	}
+
+	portaSwitchID, err := h.DB.GetPortaSwitchID(SWITCH_IP, mq.PortaNum)
+
+	_, err = h.DB.GetMaquinaByIP(mq.IP)
+	if err == nil {
+		writeJSON(w, 400, map[string]string{"error": "Machine with this IP already exists"})
+		return
+	}
+
 	id, err := h.DB.CreateMaquina(mq.IP, mq.MAC)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "Failed to create machine: " + err.Error()})
+		return
+	}
+
+	err = h.DB.LinkMaquinaToPortaSwitch(sala.ID, portaSwitchID, mq.IP)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "Failed to link machine to port: " + err.Error()})
 		return
 	}
 
@@ -190,9 +226,9 @@ func (h *Handler) createMaquina(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) createAgendamento(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
-		IP    string `json:"ip"`
-		State string `json:"state"`
-		TimeOffset  string `json:"time_offset"`
+		IP         string `json:"ip"`
+		State      string `json:"state"`
+		TimeOffset string `json:"time_offset"`
 	}
 
 	offset, err := time.ParseDuration(req.TimeOffset + "s")
@@ -210,7 +246,7 @@ func (h *Handler) createAgendamento(w http.ResponseWriter, r *http.Request) {
 	}
 
 	up := strings.EqualFold(req.State, "up")
-	err = h.DB.CreateAgendamento(req.IP, up, execTime)
+	err = h.DB.CreateAgendamento(h.sala.ID, req.IP, up, execTime)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "Failed to set schedule: " + err.Error()})
 		return
@@ -240,7 +276,7 @@ func (h *Handler) agendamentoWorker() {
 				fmt.Println("Invalid action in schedule:", ag.Acao)
 				continue
 			}
-			
+
 			err, _ = h.setPortCtx(mq.IP, ag.Acao)
 			if err != nil {
 				fmt.Println("Failed to execute scheduled action:", err)
@@ -255,4 +291,3 @@ func (h *Handler) agendamentoWorker() {
 		}
 	}
 }
-

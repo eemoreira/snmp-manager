@@ -14,6 +14,7 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/snmp-service .
+COPY ./static ./static
 EXPOSE 8080
 ENTRYPOINT ["./snmp-service"]
 

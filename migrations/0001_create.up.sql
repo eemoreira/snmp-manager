@@ -8,7 +8,7 @@ CREATE TABLE maquina (
 
 CREATE TABLE switch_ (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  ip VARCHAR(45) NOT NULL,
+  ip VARCHAR(45) NOT NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE porta_switch (
@@ -48,9 +48,8 @@ CREATE TABLE agendamento (
   sala_id INT NOT NULL,
   ip_maquina VARCHAR(45) NOT NULL,
   acao ENUM('block', 'unblock') NOT NULL,
-  tempo DATETIME NOT NULL,
+  executar_em DATETIME NOT NULL,
   executado BOOLEAN NOT NULL DEFAULT FALSE,
   FOREIGN KEY (sala_id) REFERENCES sala(id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-

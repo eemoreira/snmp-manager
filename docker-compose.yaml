@@ -25,7 +25,8 @@ services:
     volumes:
       - ./migrations:/migrations
     depends_on:
-      - db
+      db: 
+        condition: service_healthy
     restart: "on-failure"
     network_mode: host
 
@@ -33,9 +34,10 @@ services:
     build:
       context: ./snmp-service
     environment:
-      DB_DSN: "user:pass@tcp(db:3306)/control?parseTime=true"
+      DB_DSN: "user:pass@tcp(127.0.0.1:3306)/control?parseTime=true"
     depends_on:
-      - db
+      db: 
+        condition: service_healthy
     network_mode: host
 
 volumes:

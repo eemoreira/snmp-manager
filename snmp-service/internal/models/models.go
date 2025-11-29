@@ -1,4 +1,5 @@
 package models
+import "time"
 
 type Sala struct {
 	ID             int    `db:"id"`
@@ -20,9 +21,10 @@ type Switch struct {
 }
 
 type Agendamento struct {
-	ID         int    `db:"id"`
-	MaquinaIP  string    `db:"maquina_ip"`
-	ExecutarEm string `db:"executar_em"`
-	Acao       string `db:"acao"`
-	executado  bool   `db:"executado"`
+    ID          int       `db:"id"`
+    SalaID      int       `db:"sala_id"`
+    MaquinaIP   string    `db:"ip_maquina"`
+    Acao        string    `db:"acao"`
+    ExecutarEm  time.Time `db:"executar_em"`
+    Executado   bool      `db:"executado"`
 }

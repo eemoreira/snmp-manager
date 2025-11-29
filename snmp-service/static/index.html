@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNMP Manager</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; }
+        h2 { text-align: center; color: #333; }
+        .hidden { display: none; }
+        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+        button.danger { background-color: #dc3545; }
+        button.success { background-color: #28a745; }
+        .message { text-align: center; margin-top: 10px; font-size: 0.9rem; }
+        .error { color: red; }
+        .success { color: green; }
+        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="loading">
+            <h2>Verificando Acesso...</h2>
+        </div>
+
+        <div id="login" class="hidden">
+            <h2>Login da Sala</h2>
+            <input type="text" id="loginUser" placeholder="Usuário">
+            <input type="password" id="loginPass" placeholder="Senha">
+            <button onclick="doLogin()">Entrar</button>
+            <p id="loginMsg" class="message"></p>
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <h2>Painel de Controle</h2>
+            <p id="welcomeMsg" style="text-align:center; color:#666;"></p>
+            
+            <hr>
+            
+            <h3>Controle de Conexão</h3>
+            <input type="text" id="ctrlIP" placeholder="IP da Máquina (ex: 10.0.0.5)">
+            <select id="ctrlAction">
+                <option value="up">Ligar (UP)</option>
+                <option value="down">Desligar (DOWN)</option>
+            </select>
+            
+            <div style="display:flex; gap:5px;">
+                <button class="success" onclick="controlPort(false)">Executar Agora</button>
+            </div>
+            
+            <div style="margin-top: 10px;">
+                <label style="font-size: 0.8rem;">Agendar (segundos):</label>
+                <input type="number" id="ctrlTime" placeholder="Ex: 60" value="0">
+                <button onclick="controlPort(true)">Agendar</button>
+            </div>
+
+            <hr>
+
+            <h3>Nova Máquina</h3>
+            <input type="text" id="newIP" placeholder="IP">
+            <input type="text" id="newMAC" placeholder="MAC Address">
+            <input type="number" id="newPort" placeholder="Número da Porta Switch">
+            <button onclick="createMachine()">Cadastrar Máquina</button>
+
+            <p id="dashMsg" class="message"></p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // 1. Ao carregar, chama a rota de verificação (Home handler)
+        window.onload = async () => {
+            try {
+                // Mudamos a rota "/" para servir o HTML, então movemos a lógica antiga para "/api/check"
+                const response = await fetch(`${API_BASE}/check`);
+                if (response.status === 200) {
+                    const data = await response.json();
+                    document.getElementById('loading').classList.add('hidden');
+                    document.getElementById('login').classList.remove('hidden');
+                } else {
+                    document.body.innerHTML = "<h1>Acesso Negado (IP não autorizado)</h1>";
+                }
+            } catch (e) {
+                console.error(e);
+                document.body.innerHTML = "<h1>Erro de conexão com o servidor</h1>";
+            }
+        };
+
+        // 2. Função de Login
+        async function doLogin() {
+            const login = document.getElementById('loginUser').value;
+            const password = document.getElementById('loginPass').value;
+            const msg = document.getElementById('loginMsg');
+
+            const res = await fetch(`${API_BASE}/login`, {
+                method: 'POST',
+                body: JSON.stringify({ login, password })
+            });
+
+            if (res.ok) {
+                document.getElementById('login').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                document.getElementById('welcomeMsg').innerText = "Sessão iniciada";
+            } else {
+                msg.innerText = "Credenciais inválidas";
+                msg.className = "message error";
+            }
+        }
+
+        // 3. Controle de Porta (Imediato ou Agendado)
+        async function controlPort(isScheduled) {
+            const ip = document.getElementById('ctrlIP').value;
+            const state = document.getElementById('ctrlAction').value;
+            const timeOffset = document.getElementById('ctrlTime').value;
+            const msg = document.getElementById('dashMsg');
+
+            let url = isScheduled ? `${API_BASE}/agendamento` : `${API_BASE}/ports`;
+            
+            // O payload muda ligeiramente dependendo se é agendamento
+            let body = { ip, state };
+            if (isScheduled) {
+                body.time_offset = timeOffset; // Envia como string, o Go espera string
+            }
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    body: JSON.stringify(body)
+                });
+
+                if (res.ok) {
+                    msg.innerText = isScheduled ? "Agendamento criado!" : "Comando enviado!";
+                    msg.className = "message success";
+                } else {
+                    const err = await res.json();
+                    msg.innerText = "Erro: " + (err.error || "Desconhecido");
+                    msg.className = "message error";
+                }
+            } catch (e) {
+                msg.innerText = "Erro de rede";
+                msg.className = "message error";
+            }
+        }
+
+        // 4. Criar Máquina
+        async function createMachine() {
+            const ip = document.getElementById('newIP').value;
+            const mac = document.getElementById('newMAC').value;
+            const porta_num = parseInt(document.getElementById('newPort').value);
+            const msg = document.getElementById('dashMsg');
+
+            try {
+                const res = await fetch(`${API_BASE}/maquinas`, {
+                    method: 'POST',
+                    body: JSON.stringify({ ip, mac, porta_num })
+                });
+
+                if (res.status === 201) {
+                    msg.innerText = "Máquina cadastrada com sucesso!";
+                    msg.className = "message success";
+                    // Limpar campos
+                    document.getElementById('newIP').value = "";
+                    document.getElementById('newMAC').value = "";
+                    document.getElementById('newPort').value = "";
+                } else {
+                    const err = await res.json();
+                    msg.innerText = "Erro: " + (err.error || "Falha ao criar");
+                    msg.className = "message error";
+                }
+            } catch (e) {
+                msg.innerText = "Erro de rede";
+                msg.className = "message error";
+            }
+        }
+    </script>
+</body>
+</html>
