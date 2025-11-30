@@ -31,5 +31,5 @@ go.work.sum
 # .idea/
 # .vscode/
 
-# debug query
+# debug sql query
 query.sql
