@@ -71,11 +71,27 @@ function updateActionFields() {
     toggleDisplay(document.getElementById('unblockFields'), !isBlocking);
     autoUnblockInput.required = isBlocking;
     
-    updateButton(document.getElementById('executeBtn'), 
-        isBlocking ? 'Bloquear com Desbloqueio Automático' : 'Desbloquear Agora',
-        isBlocking ? 'danger' : 'success');
+    if (isBlocking) {
+        updateScheduleBlockFields();
+    } else {
+        updateScheduleUnblockFields();
+    }
+}
+
+function updateScheduleBlockFields() {
+    const isScheduled = document.getElementById('scheduleBlock')?.checked;
+    const scheduleInput = document.getElementById('scheduleBlockDateTime');
+    const autoUnblockFields = document.getElementById('autoUnblockFields');
     
-    if (!isBlocking) updateScheduleUnblockFields();
+    toggleDisplay(document.getElementById('scheduleBlockFields'), isScheduled);
+    scheduleInput.required = isScheduled;
+    
+    // Esconde campo de desbloqueio automático se estiver agendando o bloqueio
+    toggleDisplay(autoUnblockFields, !isScheduled);
+    
+    updateButton(document.getElementById('executeBtn'),
+        isScheduled ? 'Agendar Bloqueio' : 'Bloquear Agora com Desbloqueio Automático',
+        isScheduled ? 'warning' : 'danger');
 }
 
 function updateScheduleUnblockFields() {
@@ -129,51 +145,93 @@ async function executeControl(event) {
     lastControlAction = action;
 
     if (action === 'down') {
-        const diffInSeconds = validateFutureDate(document.getElementById('autoUnblockDateTime')?.value);
-        if (diffInSeconds <= 0) {
-            showMessage(msg, 'A data/hora de desbloqueio deve ser no futuro', 'error');
-            return;
-        }
-        const unblockTime = new Date(document.getElementById('autoUnblockDateTime').value);
-
-        try {
-            // 1. Bloqueia imediatamente
-            const blockRes = await fetch(`${API_BASE}/ports`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ip, state: 'down' })
-            });
-
-            if (!blockRes.ok) {
-                const err = await blockRes.json();
-                showMessage(msg, 'Erro ao bloquear: ' + (err.error || 'Desconhecido'), 'error');
+        const isSchedulingBlock = document.getElementById('scheduleBlock')?.checked;
+        
+        if (isSchedulingBlock) {
+            // Agendar bloqueio
+            const blockDatetime = document.getElementById('scheduleBlockDateTime')?.value;
+            const diffInSeconds = validateFutureDate(blockDatetime);
+            if (diffInSeconds <= 0) {
+                showMessage(msg, 'A data/hora do bloqueio deve ser no futuro', 'error');
                 return;
             }
+            const blockTime = new Date(blockDatetime);
 
-            // 2. Agenda desbloqueio automático
-            const scheduleRes = await fetch(`${API_BASE}/agendamento`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    ip, 
-                    state: 'up',
-                    time_offset: diffInSeconds.toString()
-                })
-            });
+            try {
+                const res = await fetch(`${API_BASE}/agendamento`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        ip, 
+                        state: 'down',
+                        time_offset: diffInSeconds.toString()
+                    })
+                });
 
-            if (scheduleRes.ok) {
-                showMessage(msg, `Porta bloqueada. Desbloqueio automático em ${unblockTime.toLocaleString('pt-BR')}`, 'success');
-                document.getElementById('individualForm')?.reset();
-                document.querySelector(`input[name="ctrlAction"][value="${lastControlAction}"]`).checked = true;
-                updateActionFields();
-                await loadMachines();
-                await loadSchedules();
-            } else {
-                showMessage(msg, 'Porta bloqueada, mas falha ao agendar desbloqueio. IMPORTANTE: Desbloquear manualmente!', 'error');
+                if (res.ok) {
+                    showMessage(msg, `Bloqueio agendado para ${blockTime.toLocaleString('pt-BR')}`, 'success');
+                    document.getElementById('individualForm')?.reset();
+                    document.querySelector(`input[name="ctrlAction"][value="${lastControlAction}"]`).checked = true;
+                    document.getElementById('scheduleBlock').checked = false;
+                    updateActionFields();
+                    await loadMachines();
+                    await loadSchedules();
+                } else {
+                    const err = await res.json();
+                    showMessage(msg, 'Erro ao agendar bloqueio: ' + (err.error || 'Desconhecido'), 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao agendar bloqueio:', e);
+                showMessage(msg, 'Erro de rede', 'error');
             }
-        } catch (e) {
-            console.error('Erro ao bloquear:', e);
-            showMessage(msg, 'Erro de rede', 'error');
+        } else {
+            // Bloquear imediatamente com desbloqueio automático
+            const diffInSeconds = validateFutureDate(document.getElementById('autoUnblockDateTime')?.value);
+            if (diffInSeconds <= 0) {
+                showMessage(msg, 'A data/hora de desbloqueio deve ser no futuro', 'error');
+                return;
+            }
+            const unblockTime = new Date(document.getElementById('autoUnblockDateTime').value);
+
+            try {
+                // 1. Bloqueia imediatamente
+                const blockRes = await fetch(`${API_BASE}/ports`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip, state: 'down' })
+                });
+
+                if (!blockRes.ok) {
+                    const err = await blockRes.json();
+                    showMessage(msg, 'Erro ao bloquear: ' + (err.error || 'Desconhecido'), 'error');
+                    return;
+                }
+
+                // 2. Agenda desbloqueio automático
+                const scheduleRes = await fetch(`${API_BASE}/agendamento`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        ip, 
+                        state: 'up',
+                        time_offset: diffInSeconds.toString()
+                    })
+                });
+
+                if (scheduleRes.ok) {
+                    showMessage(msg, `Porta bloqueada. Desbloqueio automático em ${unblockTime.toLocaleString('pt-BR')}`, 'success');
+                    document.getElementById('individualForm')?.reset();
+                    document.querySelector(`input[name="ctrlAction"][value="${lastControlAction}"]`).checked = true;
+                    updateActionFields();
+                    await loadMachines();
+                    await loadSchedules();
+                } else {
+                    showMessage(msg, 'Porta bloqueada, mas falha ao agendar desbloqueio. IMPORTANTE: Desbloquear manualmente!', 'error');
+                }
+            } catch (e) {
+                console.error('Erro ao bloquear:', e);
+                showMessage(msg, 'Erro de rede', 'error');
+            }
         }
 
     } else {
@@ -556,23 +614,42 @@ function renderSchedules(schedules) {
         return;
     }
 
-    container.innerHTML = schedules.map(schedule => {
-        const execTime = new Date(schedule.ExecutarEm);
-        const actionText = schedule.Acao === 'up' ? 'Desbloquear' : 'Bloquear';
-        const actionClass = schedule.Acao === 'up' ? 'success' : 'danger';
+    // Separar bloqueios e desbloqueios
+    const blockSchedules = schedules.filter(s => s.Acao === 'down');
+    const unblockSchedules = schedules.filter(s => s.Acao === 'up');
 
+    const renderColumn = (items, title, actionText, actionClass) => {
+        if (items.length === 0) {
+            return `<div><h3 style="text-align: center; color: #666; margin-bottom: 10px;">${title}</h3><p class="message info">Nenhum agendamento</p></div>`;
+        }
+        
         return `
-            <div class="machine-card">
-                <div class="machine-info">
-                    <div class="machine-name">${actionText} ${schedule.MaquinaIP}</div>
-                    <div class="machine-details">
-                        Programado para: ${execTime.toLocaleString('pt-BR')}
-                    </div>
-                </div>
-                <span class="status-badge ${actionClass}">${actionText}</span>
+            <div>
+                <h3 style="text-align: center; color: #666; margin-bottom: 10px;">${title}</h3>
+                ${items.map(schedule => {
+                    const execTime = new Date(schedule.ExecutarEm);
+                    return `
+                        <div class="machine-card">
+                            <div class="machine-info">
+                                <div class="machine-name">${schedule.MaquinaIP}</div>
+                                <div class="machine-details">
+                                    ${execTime.toLocaleString('pt-BR')}
+                                </div>
+                            </div>
+                            <span class="status-badge ${actionClass}">${actionText}</span>
+                        </div>
+                    `;
+                }).join('')}
             </div>
         `;
-    }).join('');
+    };
+
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            ${renderColumn(blockSchedules, 'Bloqueios Agendados', 'Bloquear', 'danger')}
+            ${renderColumn(unblockSchedules, 'Desbloqueios Agendados', 'Desbloquear', 'success')}
+        </div>
+    `;
 }
 
 function showMessage(element, text, type) {
