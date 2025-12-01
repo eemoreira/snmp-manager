@@ -184,18 +184,31 @@ func (h *Handler) createMaquina(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]string{"error": "Invalid request payload"})
 		return
 	}
+
+	// Verificar se a porta já está associada a uma sala
 	sala, err := h.DB.GetSalaFromPortaSwitch(SWITCH_IP, mq.PortaNum)
 	if err != nil {
-		writeJSON(w, 500, map[string]string{"error": "Failed to get room for port: " + err.Error()})
-		return
-	}
-	if sala == nil {
-		writeJSON(w, 400, map[string]string{"error": "No room found for the given port"})
-		return
-	}
-	if sala.ID != h.sala.ID {
-		writeJSON(w, 403, map[string]string{"error": "You do not have permission to add machines to this port"})
-		return
+		// Se não encontrou a sala, pode ser que a porta ainda não esteja associada
+		// Vamos verificar se a porta existe
+		portaSwitchID, err2 := h.DB.GetPortaSwitchID(SWITCH_IP, mq.PortaNum)
+		if err2 != nil {
+			writeJSON(w, 500, map[string]string{"error": "Port not found: " + err2.Error()})
+			return
+		}
+
+		// Porta existe mas não está associada a nenhuma sala
+		// Associar à sala do admin atual
+		err3 := h.DB.LinkPortaToSala(portaSwitchID, h.sala.ID)
+		if err3 != nil {
+			writeJSON(w, 500, map[string]string{"error": "Failed to link port to room: " + err3.Error()})
+			return
+		}
+	} else {
+		// Porta já está associada a uma sala, verificar se é a sala do admin
+		if sala.ID != h.sala.ID {
+			writeJSON(w, 403, map[string]string{"error": "You do not have permission to add machines to this port"})
+			return
+		}
 	}
 
 	portaSwitchID, err := h.DB.GetPortaSwitchID(SWITCH_IP, mq.PortaNum)
