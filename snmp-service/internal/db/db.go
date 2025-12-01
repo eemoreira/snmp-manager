@@ -1,10 +1,11 @@
 package db
 
 import (
+	"time"
+
 	"github.com/eemoreira/snmp-manager/internal/models"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	"time"
 )
 
 type DBManager struct {
@@ -44,18 +45,18 @@ func (m *DBManager) LinkMaquinaToPortaSwitch(maquinaIP string, portaSwitchID int
 }
 
 func (m *DBManager) GetPortaNumByMaquinaIP(maquinaIP string) (int, error) {
-    var portaNumero int
-    query := `
+	var portaNumero int
+	query := `
         SELECT ps.porta_numero 
         FROM porta_switch ps
         JOIN sala_porta sp ON sp.porta_switch_id = ps.id
         WHERE sp.ip_maquina = ?
     `
-    err := m.DB.Get(&portaNumero, query, maquinaIP)
-    if err != nil {
-        return -1, err
-    }
-    return portaNumero, nil
+	err := m.DB.Get(&portaNumero, query, maquinaIP)
+	if err != nil {
+		return -1, err
+	}
+	return portaNumero, nil
 }
 
 func (m *DBManager) GetMaquinaByIP(ip string) (*models.Maquina, error) {
@@ -118,19 +119,19 @@ func (m *DBManager) CreateSalaPorta(salaID, portaSwitchID, ip string) (int64, er
 }
 
 func (m *DBManager) GetSalaFromPortaSwitch(switchIP string, portaNum int) (*models.Sala, error) {
-    var sala models.Sala
-    query := `
+	var sala models.Sala
+	query := `
         SELECT s.* FROM sala s
         JOIN sala_porta sp ON sp.sala_id = s.id
         JOIN porta_switch ps ON ps.id = sp.porta_switch_id
         JOIN switch_ sw ON sw.id = ps.switch_id
         WHERE sw.ip = ? AND ps.porta_numero = ?
     `
-    err := m.DB.Get(&sala, query, switchIP, portaNum)
-    if err != nil {
-        return nil, err
-    }
-    return &sala, nil
+	err := m.DB.Get(&sala, query, switchIP, portaNum)
+	if err != nil {
+		return nil, err
+	}
+	return &sala, nil
 }
 
 func (m *DBManager) GetPortaSwitchID(switchIP string, portaNum int) (int, error) {
@@ -163,13 +164,13 @@ func (m *DBManager) IsIPAdmin(ip string) (bool, *models.Sala, error) {
 
 // É necessário passar o salaID e converter o boolean para o ENUM correto
 func (m *DBManager) CreateAgendamento(salaID int, maquinaIP string, acao string, execTime time.Time) error {
-    // Validação simples para garantir que a string combine com o ENUM do banco
+	// Validação simples para garantir que a string combine com o ENUM do banco
 
-    _, err := m.DB.Exec(
-        "INSERT INTO agendamento (sala_id, ip_maquina, acao, executar_em, executado) VALUES (?, ?, ?, ?, ?)",
-        salaID, maquinaIP, acao, execTime, false,
-    )
-    return err
+	_, err := m.DB.Exec(
+		"INSERT INTO agendamento (sala_id, ip_maquina, acao, executar_em, executado) VALUES (?, ?, ?, ?, ?)",
+		salaID, maquinaIP, acao, execTime, false,
+	)
+	return err
 }
 
 func (m *DBManager) GetTODOAgendamentos() ([]models.Agendamento, error) {
@@ -184,6 +185,27 @@ func (m *DBManager) GetTODOAgendamentos() ([]models.Agendamento, error) {
 func (m *DBManager) MarkAgendamentoExecuted(id int) error {
 	_, err := m.DB.Exec(
 		"UPDATE agendamento SET executado = 1 WHERE id = ?", id,
+	)
+	return err
+}
+
+func (m *DBManager) LinkPortaToSala(portaSwitchID int, salaID int) error {
+	// Verificar se já existe a associação
+	var count int
+	err := m.DB.Get(&count, "SELECT COUNT(*) FROM sala_porta WHERE porta_switch_id = ? AND sala_id = ?", portaSwitchID, salaID)
+	if err != nil {
+		return err
+	}
+
+	// Se já existe, não fazer nada
+	if count > 0 {
+		return nil
+	}
+
+	// Inserir a associação
+	_, err = m.DB.Exec(
+		"INSERT INTO sala_porta (sala_id, porta_switch_id) VALUES (?, ?)",
+		salaID, portaSwitchID,
 	)
 	return err
 }
