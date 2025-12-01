@@ -2,6 +2,8 @@ const API_BASE = '/api';
 let machines = [];
 let refreshIntervalId = null;
 let currentTab = 'control';
+let lastControlAction = 'down';
+let lastBatchAction = 'down';
 
 window.onload = async () => {
     try {
@@ -59,8 +61,11 @@ const updateButton = (btn, text, className) => {
 };
 
 function updateActionFields() {
-    const isBlocking = document.querySelector('input[name="ctrlAction"]:checked')?.value === 'down';
+    const action = document.querySelector('input[name="ctrlAction"]:checked')?.value;
+    const isBlocking = action === 'down';
     const autoUnblockInput = document.getElementById('autoUnblockDateTime');
+    
+    lastControlAction = action;
     
     toggleDisplay(document.getElementById('blockFields'), isBlocking);
     toggleDisplay(document.getElementById('unblockFields'), !isBlocking);
@@ -86,8 +91,11 @@ function updateScheduleUnblockFields() {
 }
 
 function updateBatchFields() {
-    const isBlocking = document.querySelector('input[name="batchAction"]:checked')?.value === 'down';
+    const action = document.querySelector('input[name="batchAction"]:checked')?.value;
+    const isBlocking = action === 'down';
     const autoUnblockInput = document.getElementById('batchAutoUnblockDateTime');
+    
+    lastBatchAction = action;
     
     toggleDisplay(document.getElementById('batchBlockFields'), isBlocking);
     toggleDisplay(document.getElementById('batchUnblockFields'), !isBlocking);
@@ -117,6 +125,8 @@ async function executeControl(event) {
     const ip = document.getElementById('ctrlIP')?.value;
     const action = document.querySelector('input[name="ctrlAction"]:checked')?.value;
     const msg = document.getElementById('dashMsg');
+    
+    lastControlAction = action;
 
     if (action === 'down') {
         const diffInSeconds = validateFutureDate(document.getElementById('autoUnblockDateTime')?.value);
@@ -154,7 +164,10 @@ async function executeControl(event) {
             if (scheduleRes.ok) {
                 showMessage(msg, `Porta bloqueada. Desbloqueio automático em ${unblockTime.toLocaleString('pt-BR')}`, 'success');
                 document.getElementById('individualForm')?.reset();
+                document.querySelector(`input[name="ctrlAction"][value="${lastControlAction}"]`).checked = true;
+                updateActionFields();
                 await loadMachines();
+                await loadSchedules();
             } else {
                 showMessage(msg, 'Porta bloqueada, mas falha ao agendar desbloqueio. IMPORTANTE: Desbloquear manualmente!', 'error');
             }
@@ -189,9 +202,12 @@ async function executeControl(event) {
                 if (res.ok) {
                     showMessage(msg, `Desbloqueio agendado para ${scheduleTime.toLocaleString('pt-BR')}`, 'success');
                     document.getElementById('individualForm')?.reset();
+                    document.querySelector(`input[name="ctrlAction"][value="${lastControlAction}"]`).checked = true;
                     const checkbox = document.getElementById('scheduleUnblock');
                     if (checkbox) checkbox.checked = false;
                     updateScheduleUnblockFields();
+                    await loadMachines();
+                    await loadSchedules();
                 } else {
                     const err = await res.json();
                     showMessage(msg, 'Erro: ' + (err.error || 'Desconhecido'), 'error');
@@ -211,7 +227,10 @@ async function executeControl(event) {
                 if (res.ok) {
                     showMessage(msg, 'Porta desbloqueada com sucesso', 'success');
                     document.getElementById('individualForm')?.reset();
+                    document.querySelector(`input[name="ctrlAction"][value="${lastControlAction}"]`).checked = true;
+                    updateActionFields();
                     await loadMachines();
+                    await loadSchedules();
                 } else {
                     const err = await res.json();
                     showMessage(msg, 'Erro: ' + (err.error || 'Desconhecido'), 'error');
@@ -452,22 +471,30 @@ function renderMachines() {
 }
 
 async function toggleMachineSwitch(ip, isChecked) {
-    const state = isChecked ? 'up' : 'down';
+    // Na aba de máquinas, só permite DESBLOQUEAR (ativar)
+    if (!isChecked) {
+        // Tentou bloquear - não permitido aqui
+        alert('Use a aba "Controle" para bloquear máquinas.\n\nA aba "Máquinas" permite apenas desbloquear.');
+        await loadMachines(); // Restaura o estado visual
+        return;
+    }
     
+    // Desbloquear (up) - execução imediata
     try {
         const res = await fetch(`${API_BASE}/ports`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ip, state })
+            body: JSON.stringify({ ip, state: 'up' })
         });
 
         if (res.ok) {
             await loadMachines();
+            await loadSchedules();
         } else {
             await loadMachines();
         }
     } catch (e) {
-        console.error('Erro ao alternar máquina:', e);
+        console.error('Erro ao desbloquear:', e);
         await loadMachines();
     }
 }
@@ -530,14 +557,14 @@ function renderSchedules(schedules) {
     }
 
     container.innerHTML = schedules.map(schedule => {
-        const execTime = new Date(schedule.executar_em);
-        const actionText = schedule.acao === 'up' ? 'Desbloquear' : 'Bloquear';
-        const actionClass = schedule.acao === 'up' ? 'success' : 'danger';
+        const execTime = new Date(schedule.ExecutarEm);
+        const actionText = schedule.Acao === 'up' ? 'Desbloquear' : 'Bloquear';
+        const actionClass = schedule.Acao === 'up' ? 'success' : 'danger';
 
         return `
             <div class="machine-card">
                 <div class="machine-info">
-                    <div class="machine-name">${actionText} ${schedule.ip_maquina}</div>
+                    <div class="machine-name">${actionText} ${schedule.MaquinaIP}</div>
                     <div class="machine-details">
                         Programado para: ${execTime.toLocaleString('pt-BR')}
                     </div>

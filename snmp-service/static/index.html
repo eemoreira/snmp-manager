@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNMP Manager</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
     <div class="container">
@@ -112,6 +112,7 @@
             </div>
 
             <div id="machinesTab" class="tab-content">
+                <button onclick="loadMachines()" class="button" style="margin-bottom: 15px;">🔄 Atualizar Lista</button>
                 <div id="machinesList">
                     <div class="spinner"></div>
                 </div>
@@ -146,6 +147,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="/static/app.js"></script>
 </body>
 </html>
