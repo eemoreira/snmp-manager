@@ -4,179 +4,148 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SNMP Manager</title>
-    <style>
-        body { font-family: sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
-        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 400px; }
-        h2 { text-align: center; color: #333; }
-        .hidden { display: none; }
-        input, select, button { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #007bff; color: white; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #0056b3; }
-        button.danger { background-color: #dc3545; }
-        button.success { background-color: #28a745; }
-        .message { text-align: center; margin-top: 10px; font-size: 0.9rem; }
-        .error { color: red; }
-        .success { color: green; }
-        hr { border: 0; border-top: 1px solid #eee; margin: 20px 0; }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
     <div class="container">
         <div id="loading">
             <h2>Verificando Acesso...</h2>
+            <div class="spinner"></div>
         </div>
 
         <div id="login" class="hidden">
-            <h2>Login da Sala</h2>
-            <input type="text" id="loginUser" placeholder="Usuário">
-            <input type="password" id="loginPass" placeholder="Senha">
+            <h2>Login</h2>
+            <input type="text" id="loginUser" placeholder="Usuário" autocomplete="username" autofocus required>
+            <input type="password" id="loginPass" placeholder="Senha" autocomplete="current-password" required>
             <button onclick="doLogin()">Entrar</button>
             <p id="loginMsg" class="message"></p>
         </div>
 
         <div id="dashboard" class="hidden">
-            <h2>Painel de Controle</h2>
-            <p id="welcomeMsg" style="text-align:center; color:#666;"></p>
-            
-            <hr>
-            
-            <h3>Controle de Conexão</h3>
-            <input type="text" id="ctrlIP" placeholder="IP da Máquina (ex: 10.0.0.5)">
-            <select id="ctrlAction">
-                <option value="up">Ligar (UP)</option>
-                <option value="down">Desligar (DOWN)</option>
-            </select>
-            
-            <div style="display:flex; gap:5px;">
-                <button class="success" onclick="controlPort(false)">Executar Agora</button>
-            </div>
-            
-            <div style="margin-top: 10px;">
-                <label style="font-size: 0.8rem;">Agendar (segundos):</label>
-                <input type="number" id="ctrlTime" placeholder="Ex: 60" value="0">
-                <button onclick="controlPort(true)">Agendar</button>
+            <h2 id="welcomeMsg">Painel de Controle</h2>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('control')">Controle</button>
+                <button class="tab" onclick="switchTab('machines')">Máquinas</button>
+                <button class="tab" onclick="switchTab('schedules')">Agendamentos</button>
+                <button class="tab" onclick="switchTab('register')">Cadastrar</button>
             </div>
 
-            <hr>
+            <div id="controlTab" class="tab-content active">
+                <div class="button-group" style="margin-bottom: 20px;">
+                    <input type="radio" name="controlMode" id="modeIndividual" value="individual" checked onchange="updateControlMode()">
+                    <label for="modeIndividual">Individual</label>
+                    
+                    <input type="radio" name="controlMode" id="modeBatch" value="batch" onchange="updateControlMode()">
+                    <label for="modeBatch">Em Lote</label>
+                </div>
 
-            <h3>Nova Máquina</h3>
-            <input type="text" id="newIP" placeholder="IP">
-            <input type="text" id="newMAC" placeholder="MAC Address">
-            <input type="number" id="newPort" placeholder="Número da Porta Switch">
-            <button onclick="createMachine()">Cadastrar Máquina</button>
+                <div id="individualControl">
+                    <form id="individualForm" onsubmit="executeControl(event)">
+                        <label>IP da Máquina:</label>
+                        <input type="text" id="ctrlIP" placeholder="Ex: 10.0.0.5" 
+                               pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$" 
+                               title="Digite um IP válido (ex: 10.0.0.5)" 
+                               autocomplete="off" required>
+                        
+                        <label>Ação:</label>
+                        <div class="button-group">
+                            <input type="radio" name="ctrlAction" id="actionBlock" value="down" checked onchange="updateActionFields()">
+                            <label for="actionBlock" class="danger-option">Bloquear</label>
+                            
+                            <input type="radio" name="ctrlAction" id="actionUnblock" value="up" onchange="updateActionFields()">
+                            <label for="actionUnblock">Desbloquear</label>
+                        </div>
+                        
+                        <div id="blockFields">
+                            <label>Desbloqueio Automático em:</label>
+                            <small style="color: #e74c3c;">* Obrigatório</small>
+                            <input type="datetime-local" id="autoUnblockDateTime" required>
+                        </div>
+                        
+                        <div id="unblockFields" style="display: none;">
+                            <div class="inline-checkbox">
+                                <input type="checkbox" id="scheduleUnblock" onchange="updateScheduleUnblockFields()">
+                                <label for="scheduleUnblock">Agendar desbloqueio</label>
+                            </div>
+                            <div id="scheduleUnblockFields" style="display: none;">
+                                <label>Data e Hora:</label>
+                                <input type="datetime-local" id="scheduleUnblockDateTime">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" id="executeBtn" class="danger">Bloquear com Desbloqueio Automático</button>
+                    </form>
+                </div>
 
-            <p id="dashMsg" class="message"></p>
+                <div id="batchControl" style="display: none;">
+                    <label>Ação:</label>
+                    <div class="button-group">
+                        <input type="radio" name="batchAction" id="batchBlock" value="down" checked onchange="updateBatchFields()">
+                        <label for="batchBlock" class="danger-option">Bloquear</label>
+                        
+                        <input type="radio" name="batchAction" id="batchUnblock" value="up" onchange="updateBatchFields()">
+                        <label for="batchUnblock">Desbloquear</label>
+                    </div>
+
+                    <div id="batchBlockFields">
+                        <label>Desbloqueio Automático em:</label>
+                        <small style="color: #e74c3c;">* Obrigatório</small>
+                        <input type="datetime-local" id="batchAutoUnblockDateTime">
+                    </div>
+
+                    <div id="batchUnblockFields" style="display: none;">
+                        <div class="inline-checkbox">
+                            <input type="checkbox" id="scheduleBatchUnblock" onchange="updateBatchScheduleFields()">
+                            <label for="scheduleBatchUnblock">Agendar desbloqueio</label>
+                        </div>
+                        <div id="batchScheduleUnblockFields" style="display: none;">
+                            <label>Data e Hora:</label>
+                            <input type="datetime-local" id="batchScheduleUnblockDateTime">
+                        </div>
+                    </div>
+                    
+                    <button id="batchBtn" class="danger" onclick="executeBatchControl()">Bloquear Todas</button>
+                </div>
+
+                <p id="dashMsg" class="message" style="display: none;"></p>
+            </div>
+
+            <div id="machinesTab" class="tab-content">
+                <div id="machinesList">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <div id="schedulesTab" class="tab-content">
+                <div id="schedulesList">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <div id="registerTab" class="tab-content">
+                <form id="registerForm" onsubmit="createMachine(event)">
+                    <label>IP:</label>
+                    <input type="text" id="newIP" placeholder="Ex: 10.0.0.20" 
+                           pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$" 
+                           title="Digite um IP válido" autocomplete="off" required>
+                    
+                    <label>MAC Address:</label>
+                    <input type="text" id="newMAC" placeholder="Ex: AA:BB:CC:DD:EE:FF" 
+                           pattern="^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$" 
+                           title="Digite um MAC válido (ex: AA:BB:CC:DD:EE:FF)" autocomplete="off" required>
+                    
+                    <label>Porta do Switch:</label>
+                    <input type="number" id="newPort" placeholder="Ex: 15" min="1" max="48" required>
+                    
+                    <button type="submit">Cadastrar</button>
+                    
+                    <p id="registerMsg" class="message" style="display: none;"></p>
+                </form>
+            </div>
         </div>
     </div>
 
-    <script>
-        const API_BASE = '/api';
-
-        // 1. Ao carregar, chama a rota de verificação (Home handler)
-        window.onload = async () => {
-            try {
-                // Mudamos a rota "/" para servir o HTML, então movemos a lógica antiga para "/api/check"
-                const response = await fetch(`${API_BASE}/check`);
-                if (response.status === 200) {
-                    const data = await response.json();
-                    document.getElementById('loading').classList.add('hidden');
-                    document.getElementById('login').classList.remove('hidden');
-                } else {
-                    document.body.innerHTML = "<h1>Acesso Negado (IP não autorizado)</h1>";
-                }
-            } catch (e) {
-                console.error(e);
-                document.body.innerHTML = "<h1>Erro de conexão com o servidor</h1>";
-            }
-        };
-
-        // 2. Função de Login
-        async function doLogin() {
-            const login = document.getElementById('loginUser').value;
-            const password = document.getElementById('loginPass').value;
-            const msg = document.getElementById('loginMsg');
-
-            const res = await fetch(`${API_BASE}/login`, {
-                method: 'POST',
-                body: JSON.stringify({ login, password })
-            });
-
-            if (res.ok) {
-                document.getElementById('login').classList.add('hidden');
-                document.getElementById('dashboard').classList.remove('hidden');
-                document.getElementById('welcomeMsg').innerText = "Sessão iniciada";
-            } else {
-                msg.innerText = "Credenciais inválidas";
-                msg.className = "message error";
-            }
-        }
-
-        // 3. Controle de Porta (Imediato ou Agendado)
-        async function controlPort(isScheduled) {
-            const ip = document.getElementById('ctrlIP').value;
-            const state = document.getElementById('ctrlAction').value;
-            const timeOffset = document.getElementById('ctrlTime').value;
-            const msg = document.getElementById('dashMsg');
-
-            let url = isScheduled ? `${API_BASE}/agendamento` : `${API_BASE}/ports`;
-            
-            // O payload muda ligeiramente dependendo se é agendamento
-            let body = { ip, state };
-            if (isScheduled) {
-                body.time_offset = timeOffset; // Envia como string, o Go espera string
-            }
-
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    body: JSON.stringify(body)
-                });
-
-                if (res.ok) {
-                    msg.innerText = isScheduled ? "Agendamento criado!" : "Comando enviado!";
-                    msg.className = "message success";
-                } else {
-                    const err = await res.json();
-                    msg.innerText = "Erro: " + (err.error || "Desconhecido");
-                    msg.className = "message error";
-                }
-            } catch (e) {
-                msg.innerText = "Erro de rede";
-                msg.className = "message error";
-            }
-        }
-
-        // 4. Criar Máquina
-        async function createMachine() {
-            const ip = document.getElementById('newIP').value;
-            const mac = document.getElementById('newMAC').value;
-            const porta_num = parseInt(document.getElementById('newPort').value);
-            const msg = document.getElementById('dashMsg');
-
-            try {
-                const res = await fetch(`${API_BASE}/maquinas`, {
-                    method: 'POST',
-                    body: JSON.stringify({ ip, mac, porta_num })
-                });
-
-                if (res.status === 201) {
-                    msg.innerText = "Máquina cadastrada com sucesso!";
-                    msg.className = "message success";
-                    // Limpar campos
-                    document.getElementById('newIP').value = "";
-                    document.getElementById('newMAC').value = "";
-                    document.getElementById('newPort').value = "";
-                } else {
-                    const err = await res.json();
-                    msg.innerText = "Erro: " + (err.error || "Falha ao criar");
-                    msg.className = "message error";
-                }
-            } catch (e) {
-                msg.innerText = "Erro de rede";
-                msg.className = "message error";
-            }
-        }
-    </script>
+    <script src="app.js"></script>
 </body>
 </html>
