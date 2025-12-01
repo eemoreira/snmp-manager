@@ -58,9 +58,21 @@
                         </div>
                         
                         <div id="blockFields">
-                            <label>Desbloqueio Automático em:</label>
-                            <small style="color: #e74c3c;">* Obrigatório</small>
-                            <input type="datetime-local" id="autoUnblockDateTime" required>
+                            <div class="inline-checkbox">
+                                <input type="checkbox" id="scheduleBlock" onchange="updateScheduleBlockFields()">
+                                <label for="scheduleBlock">Agendar bloqueio</label>
+                            </div>
+                            
+                            <div id="scheduleBlockFields" style="display: none;">
+                                <label>Bloquear em:</label>
+                                <input type="datetime-local" id="scheduleBlockDateTime">
+                            </div>
+                            
+                            <div id="autoUnblockFields">
+                                <label>Desbloqueio Automático em:</label>
+                                <small style="color: #e74c3c;">* Obrigatório</small>
+                                <input type="datetime-local" id="autoUnblockDateTime" required>
+                            </div>
                         </div>
                         
                         <div id="unblockFields" style="display: none;">
@@ -112,7 +124,7 @@
             </div>
 
             <div id="machinesTab" class="tab-content">
-                <button onclick="loadMachines()" class="button" style="margin-bottom: 15px;">🔄 Atualizar Lista</button>
+                <button onclick="loadMachines()" class="button" style="margin-bottom: 15px;">Atualizar Lista</button>
                 <div id="machinesList">
                     <div class="spinner"></div>
                 </div>
