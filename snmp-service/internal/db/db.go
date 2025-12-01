@@ -36,10 +36,10 @@ func (m *DBManager) CreateMaquina(ip, mac string) (int64, error) {
 	return res.LastInsertId()
 }
 
-func (m *DBManager) LinkMaquinaToPortaSwitch(maquinaIP string, portaSwitchID int) error {
+func (m *DBManager) UpdatePortaIP(salaID int, portaSwitchID int, novaIP string) error {
 	_, err := m.DB.Exec(
-		"INSERT INTO sala_porta (ip_maquina, porta_switch_id) VALUES (?, ?)",
-		maquinaIP, portaSwitchID,
+		"UPDATE sala_porta SET ip_maquina = ? WHERE sala_id = ? AND porta_switch_id = ?",
+		novaIP, salaID, portaSwitchID,
 	)
 	return err
 }
@@ -185,27 +185,6 @@ func (m *DBManager) GetTODOAgendamentos() ([]models.Agendamento, error) {
 func (m *DBManager) MarkAgendamentoExecuted(id int) error {
 	_, err := m.DB.Exec(
 		"UPDATE agendamento SET executado = 1 WHERE id = ?", id,
-	)
-	return err
-}
-
-func (m *DBManager) LinkPortaToSala(portaSwitchID int, salaID int) error {
-	// Verificar se já existe a associação
-	var count int
-	err := m.DB.Get(&count, "SELECT COUNT(*) FROM sala_porta WHERE porta_switch_id = ? AND sala_id = ?", portaSwitchID, salaID)
-	if err != nil {
-		return err
-	}
-
-	// Se já existe, não fazer nada
-	if count > 0 {
-		return nil
-	}
-
-	// Inserir a associação
-	_, err = m.DB.Exec(
-		"INSERT INTO sala_porta (sala_id, porta_switch_id) VALUES (?, ?)",
-		salaID, portaSwitchID,
 	)
 	return err
 }
