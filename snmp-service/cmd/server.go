@@ -32,8 +32,11 @@ func main() {
 	r.HandleFunc("/api/check", h.check).Methods("GET")
 	r.HandleFunc("/api/login", h.login).Methods("POST")
 	r.HandleFunc("/api/maquinas", h.createMaquina).Methods("POST")
+	r.HandleFunc("/api/maquinas", h.listMaquinas).Methods("GET")
 
 	r.HandleFunc("/api/agendamento", h.createAgendamento).Methods("POST")
+	r.HandleFunc("/api/agendamentos", h.listAgendamentos).Methods("GET")
+
 	r.HandleFunc("/api/ports", h.setPort).Methods("POST")
 	r.HandleFunc("/api/ports", h.getPort).Methods("GET")
 
