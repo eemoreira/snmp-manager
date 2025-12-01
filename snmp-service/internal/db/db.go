@@ -162,12 +162,12 @@ func (m *DBManager) IsIPAdmin(ip string) (bool, *models.Sala, error) {
 }
 
 // É necessário passar o salaID e converter o boolean para o ENUM correto
-func (m *DBManager) CreateAgendamento(salaID int, maquinaIP string, acao bool, execTime time.Time) error {
+func (m *DBManager) CreateAgendamento(salaID int, maquinaIP string, acao string, execTime time.Time) error {
     // Validação simples para garantir que a string combine com o ENUM do banco
 
     _, err := m.DB.Exec(
         "INSERT INTO agendamento (sala_id, ip_maquina, acao, executar_em, executado) VALUES (?, ?, ?, ?, ?)",
-        salaID, maquinaIP, acao, execTime, false, // false para 'executado'
+        salaID, maquinaIP, acao, execTime, false,
     )
     return err
 }

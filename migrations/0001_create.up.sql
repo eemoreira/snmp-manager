@@ -47,7 +47,7 @@ CREATE TABLE agendamento (
   id INT AUTO_INCREMENT PRIMARY KEY,
   sala_id INT NOT NULL,
   ip_maquina VARCHAR(45) NOT NULL,
-  acao ENUM('block', 'unblock') NOT NULL,
+  acao ENUM('up', 'down') NOT NULL,
   executar_em DATETIME NOT NULL,
   executado BOOLEAN NOT NULL DEFAULT FALSE,
   FOREIGN KEY (sala_id) REFERENCES sala(id)
