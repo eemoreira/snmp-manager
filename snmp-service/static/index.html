@@ -60,30 +60,35 @@
                         <div id="blockFields">
                             <div class="inline-checkbox">
                                 <input type="checkbox" id="scheduleBlock" onchange="updateScheduleBlockFields()">
-                                <label for="scheduleBlock">Agendar bloqueio</label>
+                                <label for="scheduleBlock">Agendar bloqueio (ao invés de bloquear agora)</label>
                             </div>
                             
-                            <div id="scheduleBlockFields" style="display: none;">
-                                <label>Bloquear em:</label>
-                                <input type="datetime-local" id="scheduleBlockDateTime">
-                            </div>
-                            
-                            <div id="autoUnblockFields">
+                            <div id="immediateBlockFields">
                                 <label>Desbloqueio Automático em:</label>
-                                <small style="color: #e74c3c;">* Obrigatório</small>
+                                <small style="color: #e74c3c;">* Obrigatório quando bloqueia agora</small>
                                 <input type="datetime-local" id="autoUnblockDateTime" required>
+                            </div>
+                            
+                            <div id="scheduledBlockFields" style="display: none;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div>
+                                        <label>Bloquear em:</label>
+                                        <small style="color: #e74c3c;">* Data do bloqueio</small>
+                                        <input type="datetime-local" id="scheduleBlockDateTime">
+                                    </div>
+                                    <div>
+                                        <label>Desbloquear em:</label>
+                                        <small style="color: #e74c3c;">* Após o bloqueio</small>
+                                        <input type="datetime-local" id="scheduleUnblockDateTime">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
                         <div id="unblockFields" style="display: none;">
-                            <div class="inline-checkbox">
-                                <input type="checkbox" id="scheduleUnblock" onchange="updateScheduleUnblockFields()">
-                                <label for="scheduleUnblock">Agendar desbloqueio</label>
-                            </div>
-                            <div id="scheduleUnblockFields" style="display: none;">
-                                <label>Data e Hora:</label>
-                                <input type="datetime-local" id="scheduleUnblockDateTime">
-                            </div>
+                            <p style="color: #666; font-size: 14px; text-align: center; margin: 10px 0;">
+                                Desbloquear porta imediatamente
+                            </p>
                         </div>
                         
                         <button type="submit" id="executeBtn" class="danger">Bloquear com Desbloqueio Automático</button>

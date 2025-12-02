@@ -273,12 +273,19 @@ func (h *Handler) listMaquinas(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Obter o IP do admin (cliente fazendo a requisição)
+	adminIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"error": "Failed to parse remote address: " + err.Error()})
+		return
+	}
+
 	query := `
 		SELECT m.id, m.ip, m.mac, ps.porta_numero
 		FROM maquina m
 		JOIN sala_porta sp ON sp.ip_maquina = m.ip
 		JOIN porta_switch ps ON ps.id = sp.porta_switch_id
-		WHERE sp.sala_id = ?
+		WHERE sp.sala_id = ? AND m.ip != ?
 	`
 
 	type MaquinaResponse struct {
@@ -289,7 +296,7 @@ func (h *Handler) listMaquinas(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var machines []MaquinaResponse
-	err := h.DB.DB.Select(&machines, query, h.sala.ID)
+	err = h.DB.DB.Select(&machines, query, h.sala.ID, adminIP)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": err.Error()})
 		return
