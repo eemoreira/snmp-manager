@@ -190,19 +190,12 @@ func (h *Handler) createMaquina(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// Se não encontrou a sala, pode ser que a porta ainda não esteja associada
 		// Vamos verificar se a porta existe
-		portaSwitchID, err2 := h.DB.GetPortaSwitchID(SWITCH_IP, mq.PortaNum)
+		_, err2 := h.DB.GetPortaSwitchID(SWITCH_IP, mq.PortaNum)
 		if err2 != nil {
 			writeJSON(w, 500, map[string]string{"error": "Port not found: " + err2.Error()})
 			return
 		}
 
-		// Porta existe mas não está associada a nenhuma sala
-		// Associar à sala do admin atual
-		err3 := h.DB.LinkPortaToSala(portaSwitchID, h.sala.ID)
-		if err3 != nil {
-			writeJSON(w, 500, map[string]string{"error": "Failed to link port to room: " + err3.Error()})
-			return
-		}
 	} else {
 		// Porta já está associada a uma sala, verificar se é a sala do admin
 		if sala.ID != h.sala.ID {
@@ -229,7 +222,7 @@ func (h *Handler) createMaquina(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.DB.LinkMaquinaToPortaSwitch(mq.IP, portaSwitchID)
+	err = h.DB.UpdatePortaIP(h.sala.ID, portaSwitchID, mq.IP)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "Failed to link machine to port: " + err.Error()})
 		return
@@ -264,14 +257,7 @@ func (h *Handler) createAgendamento(w http.ResponseWriter, r *http.Request) {
 	}
 	execTime := time.Now().Add(offset)
 
-	// Normalizar a ação para minúsculas
-	action := strings.ToLower(req.State)
-	if action != "up" && action != "down" {
-		writeJSON(w, 400, map[string]string{"error": "Invalid state. Must be 'up' or 'down'"})
-		return
-	}
-
-	err = h.DB.CreateAgendamento(h.sala.ID, req.IP, action, execTime)
+	err = h.DB.CreateAgendamento(h.sala.ID, req.IP, req.State, execTime)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"error": "Failed to set schedule: " + err.Error()})
 		return
